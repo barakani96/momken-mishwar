@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/app_constants.dart';
+import '../../../core/app_theme.dart';
+import '../../../core/responsive.dart';
 import '../view_models/auth_view_model.dart';
+import '../../../../l10n/app_localizations.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -48,13 +51,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         _nationalIdController.text.trim().isEmpty ||
         _licenseController.text.trim().isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أكمل جميع الحقول المطلوبة')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.completeRequiredFields)));
       }
       return;
     }
     setState(() => _registering = true);
-    final vm = ref.read(authViewModelProvider);
-    final ok = await vm.registerDriver(
+    final ok = await ref.read(authViewModelProvider.notifier).registerDriver(
       name: _nameController.text.trim(),
       phone: phone,
       vehicleType: _vehicleTypeController.text.trim(),
@@ -62,58 +64,84 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       nationalId: _nationalIdController.text.trim(),
       licenseNumber: _licenseController.text.trim(),
     );
+    if (!mounted) return;
     setState(() => _registering = false);
-    if (ok && mounted) {
+    if (ok) {
       context.go('/login?phone=$phone');
-    } else if (mounted) {
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(vm.error ?? 'فشل التسجيل')),
+        SnackBar(content: Text(ref.read(authViewModelProvider).error ?? AppLocalizations.of(context)!.registerFailed)),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final vm = ref.read(authViewModelProvider);
-    return ListenableBuilder(
-      listenable: vm,
-      builder: (context, _) {
-        return Scaffold(
-          appBar: AppBar(title: const Text('تسجيل سائق جديد')),
-          body: Padding(
-            padding: const EdgeInsets.all(24),
-            child: ListView(
-              children: [
-                const Text('البيانات الأساسية للسائق'),
-                const SizedBox(height: 16),
-                TextField(controller: _nameController, decoration: const InputDecoration(labelText: 'الاسم الكامل')),
-                const SizedBox(height: 12),
-                TextField(controller: _phoneController, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'رقم الهاتف', prefixText: '+967 ', hintText: '771234567')),
-                const SizedBox(height: 12),
-                TextField(controller: _vehicleTypeController, decoration: const InputDecoration(labelText: 'نوع المركبة')),
-                const SizedBox(height: 12),
-                TextField(controller: _plateController, decoration: const InputDecoration(labelText: 'لوحة المركبة')),
-                const SizedBox(height: 12),
-                TextField(controller: _nationalIdController, decoration: const InputDecoration(labelText: 'الرقم الوطني')),
-                const SizedBox(height: 12),
-                TextField(controller: _licenseController, decoration: const InputDecoration(labelText: 'رقم رخصة القيادة')),
-                const SizedBox(height: 24),
-                SizedBox(
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _registering ? null : _register,
-                    child: _registering
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text('تسجيل'),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextButton(onPressed: () => context.go('/login'), child: const Text('لديك حساب؟ تسجيل الدخول')),
-              ],
-            ),
+    return Scaffold(
+      appBar: AppBar(title: Text(AppLocalizations.of(context)!.register)),
+      body: Padding(
+        padding: context.responsivePadding,
+        child: ContentMaxWidth(
+          maxWidth: 560,
+          child: ListView(
+            children: [
+              const SizedBox(height: UberSpacing.sm),
+              const Text(
+                'تسجيل سائق جديد',
+                style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, height: 1.25, color: UberColors.black),
+              ),
+              const SizedBox(height: UberSpacing.sm),
+              Text(
+                'أدخل بياناتك كما تظهر في مستنداتك الرسمية؛ ستُراجع قبل تفعيل حسابك.',
+                style: UberTypography.caption,
+              ),
+              const SizedBox(height: UberSpacing.xl),
+              const Text(
+                'بيانات السائق',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: UberColors.black),
+              ),
+              const SizedBox(height: UberSpacing.md),
+              TextField(controller: _nameController, decoration: const InputDecoration(labelText: 'الاسم الكامل')),
+              const SizedBox(height: UberSpacing.md),
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: 'رقم الهاتف', prefixText: '+967 ', hintText: '771234567'),
+              ),
+              const SizedBox(height: UberSpacing.xl),
+              const Text(
+                'المركبة والمستندات',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: UberColors.black),
+              ),
+              const SizedBox(height: UberSpacing.md),
+              TextField(controller: _vehicleTypeController, decoration: const InputDecoration(labelText: 'نوع المركبة')),
+              const SizedBox(height: UberSpacing.md),
+              TextField(controller: _plateController, decoration: const InputDecoration(labelText: 'لوحة المركبة')),
+              const SizedBox(height: UberSpacing.md),
+              TextField(
+                controller: _nationalIdController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'الرقم الوطني'),
+              ),
+              const SizedBox(height: UberSpacing.md),
+              TextField(controller: _licenseController, decoration: const InputDecoration(labelText: 'رقم رخصة القيادة')),
+              const SizedBox(height: UberSpacing.xl),
+              ElevatedButton(
+                onPressed: _registering ? null : _register,
+                child: _registering
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: UberColors.white),
+                      )
+                    : const Text('تسجيل'),
+              ),
+              const SizedBox(height: UberSpacing.sm),
+              TextButton(onPressed: () => context.go('/login'), child: const Text('لديك حساب؟ تسجيل الدخول')),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

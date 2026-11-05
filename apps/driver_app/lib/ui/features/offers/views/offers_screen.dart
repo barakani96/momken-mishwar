@@ -3,117 +3,318 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../domain/models/offer.dart';
+import '../../../core/app_theme.dart';
+import '../../../core/responsive.dart';
+import '../../../core/uber_components.dart';
 import '../view_models/offers_view_model.dart';
+import '../../../../l10n/app_localizations.dart';
 
-class OffersScreen extends ConsumerWidget {
-  const OffersScreen({super.key});
+class OffersScreen extends ConsumerStatefulWidget {
+  final String? selectedRideId;
+
+  const OffersScreen({this.selectedRideId, super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final vm = ref.watch(offersViewModelProvider);
-    return ListenableBuilder(
-      listenable: vm,
-      builder: (context, _) {
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('العروض'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                onPressed: vm.isLoading ? null : () => vm.fetchOffers(),
-              ),
-            ],
-          ),
-          body: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (vm.hasActiveRide)
-                  Card(
-                    color: Colors.amber.shade50,
-                    child: ListTile(
-                      leading: const Icon(Icons.info, color: Colors.amber),
-                      title: const Text('رحلة نشطة'),
-                      subtitle: Text('معرف الرحلة: ${vm.activeRideId} — لا يمكن قبول عروض جديدة حتى تنتهي الرحلة الحالية.'),
-                      trailing: TextButton(onPressed: () => vm.clearError(), child: const Text('حسناً')),
-                    ),
-                  ),
-                if (vm.hasActiveRide) const SizedBox(height: 12),
-                Expanded(
-                  child: vm.isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : vm.offers.isEmpty
-                      ? const Center(child: Text('لا توجد عروض حالية'))
-                      : RefreshIndicator(
-                          onRefresh: () async => vm.fetchOffers(),
-                          child: ListView.builder(
-                            itemCount: vm.offers.length,
-                            itemBuilder: (context, i) {
-                              final o = vm.offers[i];
-                              return Card(
-                                child: ListTile(
-                                  title: Text('${o.pickup} → ${o.destination}'),
-                                  subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text('الأجرة: ${o.fare.toStringAsFixed(0)} ريال · المسافة: ${(o.distanceMeters / 1000).toStringAsFixed(1)} كم'),
-                                      Text('تنتهي بعد ${o.expiresAt.difference(DateTime.now()).inMinutes} دقيقة', style: const TextStyle(fontSize: 12)),
-                                    ],
-                                  ),
-                                  trailing: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      if (o.status == OfferStatus.pending && !vm.hasActiveRide) ...[
-                                        SizedBox(
-                                          height: 40,
-                                          child: ElevatedButton(
-                                            onPressed: vm.accepting ? null : () => _accept(context, vm, o),
-                                            child: const Text('قبول'),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        SizedBox(
-                                          height: 40,
-                                          child: OutlinedButton(onPressed: () => vm.rejectOffer(o.offerId), child: const Text('رفض')),
-                                        ),
-                                      ] else ...[
-                                        Chip(label: Text(_statusLabel(o.status))),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                ),
-                if (vm.error != null) ...[
-                  const SizedBox(height: 8),
-                  Text(vm.error!, style: const TextStyle(color: Colors.red)),
-                ],
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+  ConsumerState<OffersScreen> createState() => _OffersScreenState();
+}
 
-  void _accept(BuildContext context, OffersViewModel vm, Offer o) {
-    vm.acceptOffer(o.offerId).then((ok) {
-      if (!context.mounted) return;
-      if (!vm.accepting) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ok ? 'تم قبول العرض وتوجيهك للرحلة' : vm.error ?? 'فشل القبول')),
-        );
+class _OffersScreenState extends ConsumerState<OffersScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Requests are pushed to the driver in the real app; here the inbox is
+    // polled once on arrival so the tab is never a dead end. Post-frame, so the
+    // notifier isn't written to while the tree is building.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final state = ref.read(offersViewModelProvider);
+      final hasPending = state.offers.any((o) => o.status == OfferStatus.pending && !o.isExpired);
+      if (!state.isLoading && !hasPending) {
+        ref.read(offersViewModelProvider.notifier).fetchOffers();
       }
-      if (ok && context.mounted) context.go('/ride-track/${o.rideId}');
     });
   }
 
-  String _statusLabel(OfferStatus s) {
-    switch (s) {
+  @override
+  Widget build(BuildContext context) {
+    final vm = ref.watch(offersViewModelProvider);
+    final offers = [...vm.offers];
+    final selectedRideId = widget.selectedRideId;
+    if (selectedRideId != null) {
+      // Keep all offers visible, but bring the selected ride's offer to the
+      // front so the driver's original choice survives this navigation.
+      offers.sort((a, b) {
+        final aSelected = a.rideId == selectedRideId;
+        final bSelected = b.rideId == selectedRideId;
+        if (aSelected == bSelected) return 0;
+        return aSelected ? -1 : 1;
+      });
+    }
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(AppLocalizations.of(context)!.offers),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'تحديث',
+            onPressed: vm.isLoading
+                ? null
+                : () => ref.read(offersViewModelProvider.notifier).fetchOffers(),
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: context.responsivePadding,
+        child: ContentMaxWidth(
+          maxWidth: 900,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (vm.hasActiveRide) ...[
+                _ActiveRideNotice(rideId: vm.activeRideId),
+                const SizedBox(height: UberSpacing.md),
+              ],
+              Expanded(
+                child: vm.isLoading && offers.isEmpty
+                    ? const Center(child: CircularProgressIndicator())
+                    : offers.isEmpty
+                    ? const UberEmptyState(
+                        icon: Icons.local_offer_outlined,
+                        title: 'لا توجد طلبات الآن',
+                        message: 'ستظهر الطلبات هنا لحظة وصولها. اسحب لأسفل للتحقق.',
+                      )
+                    : RefreshIndicator(
+                        onRefresh: () async => ref.read(offersViewModelProvider.notifier).fetchOffers(),
+                        child: _OfferList(
+                          offers: offers,
+                          hasActiveRide: vm.hasActiveRide,
+                          accepting: vm.accepting,
+                          selectedRideId: selectedRideId,
+                        ),
+                      ),
+              ),
+              UberErrorText(vm.error),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A lock-out with a way out: while a trip is running nothing else can be
+/// accepted, so the notice's only job is to take the driver back to that trip.
+class _ActiveRideNotice extends StatelessWidget {
+  final String? rideId;
+
+  const _ActiveRideNotice({required this.rideId});
+
+  @override
+  Widget build(BuildContext context) {
+    return UberCard(
+      padding: const EdgeInsets.all(UberSpacing.lg),
+      child: Row(
+        children: [
+          const Icon(Icons.route, size: 20, color: UberColors.black),
+          const SizedBox(width: UberSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'رحلة نشطة',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: UberColors.black),
+                ),
+                const SizedBox(height: UberSpacing.xxs),
+                Text(
+                  'أنهِ الرحلة الحالية قبل قبول طلبات جديدة.',
+                  maxLines: 2,
+                  style: UberTypography.caption,
+                ),
+              ],
+            ),
+          ),
+          if (rideId != null) ...[
+            const SizedBox(width: UberSpacing.sm),
+            ElevatedButton(
+              onPressed: () => context.go('/ride-track/$rideId'),
+              style: ElevatedButton.styleFrom(minimumSize: const Size(0, 44)),
+              child: const Text('متابعة'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Requests stack vertically like a queue of decisions, each card sized by its
+/// own content — no fixed row height to overflow when type or padding grows.
+class _OfferList extends ConsumerWidget {
+  final List<Offer> offers;
+  final bool hasActiveRide;
+  final bool accepting;
+  final String? selectedRideId;
+
+  const _OfferList({
+    required this.offers,
+    required this.hasActiveRide,
+    required this.accepting,
+    required this.selectedRideId,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListView.separated(
+      // Keeps pull-to-refresh working even when the list fits on screen.
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: offers.length,
+      separatorBuilder: (_, __) => const SizedBox(height: UberSpacing.sm),
+      itemBuilder: (context, i) => _OfferCard(
+        offer: offers[i],
+        hasActiveRide: hasActiveRide,
+        accepting: accepting,
+        highlighted: selectedRideId != null && offers[i].rideId == selectedRideId,
+      ),
+    );
+  }
+}
+
+class _OfferCard extends ConsumerWidget {
+  final Offer offer;
+  final bool hasActiveRide;
+  final bool accepting;
+  final bool highlighted;
+
+  const _OfferCard({
+    required this.offer,
+    required this.hasActiveRide,
+    required this.accepting,
+    required this.highlighted,
+  });
+
+  bool get _canRespond =>
+      offer.status == OfferStatus.pending && !offer.isExpired && !hasActiveRide;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return UberCard(
+      featured: highlighted,
+      padding: const EdgeInsets.all(UberSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (highlighted) ...[
+            const Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: UberStatusPill(label: 'الرحلة المحددة', tone: UberStatusTone.active),
+            ),
+            const SizedBox(height: UberSpacing.sm),
+          ],
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    UberRouteLine(pickup: offer.pickup, destination: offer.destination),
+                    const SizedBox(height: 6),
+                    Text(
+                      'مدى الرحلة ${(offer.distanceMeters / 1000).toStringAsFixed(1)} كم',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: UberTypography.caption,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: UberSpacing.md),
+              // Upfront decision data: what it pays, how far, and how long the
+              // driver has to answer.
+              UberCountdownRing(expiresAt: offer.expiresAt),
+            ],
+          ),
+          const SizedBox(height: UberSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('الأجرة', style: UberTypography.micro),
+                    const SizedBox(height: UberSpacing.xxs),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          offer.fare.toStringAsFixed(0),
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
+                            color: UberColors.black,
+                          ),
+                        ),
+                        const SizedBox(width: UberSpacing.xs),
+                        const Text(
+                          'ريال',
+                          style: TextStyle(fontSize: 12, color: UberColors.mutedGray),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (!_canRespond)
+                UberStatusPill(label: _statusLabel(offer), tone: _statusTone(offer)),
+            ],
+          ),
+          if (_canRespond) ...[
+            const SizedBox(height: UberSpacing.md),
+            Row(
+              children: [
+                // Accept is the dominant action; decline stays available but
+                // never competes with it for the thumb.
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: accepting ? null : () => _accept(context, ref),
+                    child: const Text('قبول'),
+                  ),
+                ),
+                const SizedBox(width: UberSpacing.sm),
+                SizedBox(
+                  width: 104,
+                  child: OutlinedButton(
+                    onPressed: accepting
+                        ? null
+                        : () => ref.read(offersViewModelProvider.notifier).rejectOffer(offer.offerId),
+                    child: const Text('رفض'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _accept(BuildContext context, WidgetRef ref) {
+    ref.read(offersViewModelProvider.notifier).acceptOffer(offer.offerId).then((ok) {
+      if (!context.mounted) return;
+      final error = ref.read(offersViewModelProvider).error;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ok ? AppLocalizations.of(context)!.offerAcceptedNotice : error ?? AppLocalizations.of(context)!.offerAcceptFailed)),
+      );
+      if (ok && context.mounted) context.go('/ride-track/${offer.rideId}');
+    });
+  }
+
+  String _statusLabel(Offer o) {
+    if (o.isExpired && o.status == OfferStatus.pending) return 'انتهت المدة';
+    switch (o.status) {
       case OfferStatus.accepted:
         return 'مقبول';
       case OfferStatus.rejected:
@@ -122,6 +323,18 @@ class OffersScreen extends ConsumerWidget {
         return 'منتهي';
       case OfferStatus.pending:
         return 'قيد الانتظار';
+    }
+  }
+
+  UberStatusTone _statusTone(Offer o) {
+    switch (o.status) {
+      case OfferStatus.accepted:
+        return UberStatusTone.active;
+      case OfferStatus.rejected:
+        return UberStatusTone.danger;
+      case OfferStatus.expired:
+      case OfferStatus.pending:
+        return UberStatusTone.neutral;
     }
   }
 }

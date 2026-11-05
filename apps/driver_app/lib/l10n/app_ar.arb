@@ -33,6 +33,15 @@
   "activeRide": "لديك رحلة نشطة",
   "noNewOffers": "لا يمكن قبول عروض جديدة حتى تنتهي الرحلة الحالية",
   "rideTracking": "تتبع الرحلة",
+  "rideNumber": "الرحلة {rideId}",
+  "@rideNumber": {
+    "description": "Header title identifying the specific ride being tracked",
+    "placeholders": {
+      "rideId": {
+        "type": "String"
+      }
+    }
+  },
   "status": "الحالة",
   "assigned": "مسندة",
   "arriving": "قادم",
@@ -72,5 +81,64 @@
   "sendPayoutRequest": "إرسال الطلب",
   "dataAge": "عمر البيانات: ",
   "live": "مباشر",
-  "stale": "قديم/غير موثوق"
+  "stale": "قديم/غير موثوق",
+  "appName": "مشوار اليمن",
+  "loginSubtitle": "أدخل رقم هاتفك اليمني لطلب رمز التحقق.",
+  "invalidYemeniPhone": "أدخل رقم هاتف يمني صحيح (مثال: {example})",
+  "requestOtpFailed": "فشل طلب الرمز",
+  "createDriverAccount": "إنشاء حساب سائق جديد",
+  "demoModeFilled": "وضع العرض التجريبي: رقم الهاتف ورمز التحقق معبّآن تلقائياً",
+  "@otpInstruction": {
+    "description": "OTP prompt naming the phone number the code was sent to",
+    "placeholders": {
+      "phone": {
+        "type": "String",
+        "example": "+967771234567"
+      }
+    }
+  },
+  "@resendingIn": {
+    "description": "Resend cooldown countdown, in seconds",
+    "placeholders": {
+      "seconds": {
+        "type": "int",
+        "example": "30"
+      }
+    }
+  },
+  "@expiresIn": {
+    "description": "Offer expiry countdown, in whole minutes",
+    "placeholders": {
+      "minutes": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
+  "@invalidYemeniPhone": {
+    "description": "Shown when the entered number is too short to be a Yemeni phone number",
+    "placeholders": {
+      "example": {
+        "type": "String",
+        "example": "771234567"
+      }
+    }
+  },
+  "payoutInvalidAmount": "أدخل مبلغاً صحيحاً",
+  "payoutRequestFailed": "فشل الإرسال",
+  "payoutRequestSent": "تم إرسال طلب التسوية للمراجعة",
+  "filePickerStubNotice": "يتم فتح منتقي الملفات (يحتاج حزمة file_picker)",
+  "otpIncomplete": "أدخل الرمز الكامل من 6 أرقام",
+  "otpInvalid": "رمز التحقق غير صحيح",
+  "otpResent": "أُعيد إرسال الرمز",
+  "otpResendFailed": "فشل إعادة الإرسال",
+  "completeRequiredFields": "أكمل جميع الحقول المطلوبة",
+  "registerFailed": "فشل التسجيل",
+  "offerAcceptFailed": "فشل القبول",
+  "offerAcceptedNotice": "تم قبول الطلب وتوجيهك للرحلة",
+  "assignmentVerifyFailed": "فشل التحقق من الإسناد",
+  "assignmentVerifiedNotice": "تم التحقق من إسناد الرحلة",
+  "rideStartedNotice": "بدأت الرحلة",
+  "rideCompleteFailed": "فشل إنهاء الرحلة",
+  "rideCompletedNotice": "تم إنهاء الرحلة"
 }

@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/app_constants.dart';
+import '../../../../../core/demo_mode.dart';
+import '../../../../../data/mock/demo_data.dart';
+import '../../../core/responsive.dart';
 import '../view_models/auth_view_model.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -15,6 +18,17 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _phoneController = TextEditingController();
   bool _requesting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Demo mode: prefill the demo phone so testers go straight to the OTP
+    // step without typing.
+    if (ref.read(demoModeProvider)) {
+      _phoneController.text =
+          DemoData.demoPhone.substring(AppConstants.yemenCountryCode.length);
+    }
+  }
 
   @override
   void dispose() {
@@ -40,8 +54,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
     setState(() => _requesting = true);
-    final vm = ref.read(authViewModelProvider);
-    final ok = await vm.requestOtp(phone);
+    final ok = await ref.read(authViewModelProvider.notifier).requestOtp(phone);
     setState(() => _requesting = false);
     if (ok && mounted) {
       context.go('/otp?phone=$phone');
@@ -53,43 +66,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final vm = ref.read(authViewModelProvider);
-    return ListenableBuilder(
-      listenable: vm,
-      builder: (context, _) {
-        return Scaffold(
-          appBar: AppBar(title: const Text('تسجيل الدخول')),
-          body: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text('أدخل رقم هاتفك اليمني لطلب رمز التحقق'),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    labelText: 'رقم الهاتف',
-                    prefixText: '+967 ',
-                    hintText: '771234567',
-                  ),
+    return Scaffold(
+      appBar: AppBar(title: const Text('تسجيل الدخول')),
+      body: Padding(
+        padding: context.responsivePadding,
+        child: ContentMaxWidth(
+          maxWidth: 480,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('أدخل رقم هاتفك اليمني لطلب رمز التحقق'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'رقم الهاتف',
+                  prefixText: '+967 ',
+                  hintText: '771234567',
                 ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _requesting ? null : _requestOtp,
-                    child: _requesting
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text('طلب رمز التحقق'),
-                  ),
+              ),
+              if (ref.watch(demoModeProvider)) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'وضع العرض التجريبي: رقم الهاتف ورمز التحقق معبّآن تلقائياً',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.labelSmall,
                 ),
               ],
-            ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _requesting ? null : _requestOtp,
+                child: _requesting
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('طلب رمز التحقق'),
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
